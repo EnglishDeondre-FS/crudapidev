@@ -5,16 +5,23 @@ async function returnDbConnection() {
     try {
         const mongoURI = process.env.MONGOURI;
 
-        await mongoose.connect(mongoURI, {
-            newUrlParser: true, 
-            useUnifedTopology: true,
-        });
+        const client = new MongoClient(mongoURI, {
+            serverApi: {
+              version: ServerApiVersion.v1,
+              strict: true,
+              deprecationErrors: true,
+            }
+          });
+
+        await client.connect();
 
         console.log('Succesfully connected to MONGODB!');
-        return mongoose.connection;
+        return client;
     } catch(e) {
         console.erorr("Error connecting to MONGODB: ", error);
         throw error;
+    } finally {
+        await client.close();
     }
 }
 
