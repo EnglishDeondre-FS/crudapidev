@@ -41,6 +41,7 @@ function App() {
   },
  ]);
  const [create, setCreate] = useState(false);
+ const [editingMovieId, setEditingMovieId] = useState<string | null>(null);
 
  const [newMovie, setNewMovie] = useState<NewMovie>({
   title: '',
@@ -52,13 +53,39 @@ function App() {
   const newMovieToAdd: Movie = {
    _id: String(Date.now()),
    title: newMovie.title,
-   releaseYear: parseInt(newMovie.releaseYear, 10), 
+   releaseYear: parseInt(newMovie.releaseYear, 10),
    imdbID: newMovie.imdbID,
    created_at: new Date().toISOString(),
   };
 
-  setMovies([newMovieToAdd, ...movies]); 
+  setMovies([newMovieToAdd, ...movies]);
   setNewMovie({ title: '', releaseYear: '', imdbID: '' });
+  setCreate(false);
+ };
+
+ const handleMovieInputChange = (
+  e: React.ChangeEvent<HTMLInputElement>,
+  id: string
+ ) => {
+  const { name, value } = e.target;
+  setMovies((prevMovies) =>
+   prevMovies.map((movie) =>
+    movie._id === id
+     ? {
+        ...movie,
+        [name]: name === 'releaseYear' ? parseInt(value, 10) : value,
+       }
+     : movie
+   )
+  );
+ };
+
+ const handleEditClick = (id: string) => {
+  setEditingMovieId(id);
+ };
+
+ const handleSaveClick = () => {
+  setEditingMovieId(null);
  };
 
  const handleRemoveMovie = (id: string) => {
@@ -69,6 +96,7 @@ function App() {
   setNewMovie({ ...newMovie, [e.target.name]: e.target.value });
  };
 
+
  return (
   <>
    <h1>Movie Viewer App</h1>
@@ -78,7 +106,8 @@ function App() {
      <thead>
       <tr>
        <th>
-        Title <Icon icon="eva:plus-circle-fill" onClick={() => setCreate(!create)} />
+        Title{' '}
+        <Icon icon="eva:plus-circle-fill" onClick={() => setCreate(!create)} />
        </th>
        <th>Release Year</th>
        <th>IMDB ID</th>
@@ -86,56 +115,94 @@ function App() {
        <th>Actions</th>
       </tr>
 
-      {/* New Movie Input Row */}
       {create && (
-        <tr>
-       <td>
-        <input
-         type="text"
-         name="title"
-         placeholder="Title"
-         value={newMovie.title}
-         onChange={handleInputChange}
-        />
-       </td>
-       <td>
-        <input
-         type="date"
-         name="releaseYear"
-         placeholder="Release Year"
-         value={newMovie.releaseYear}
-         onChange={handleInputChange}
-        />
-       </td>
-       <td>
-        <input
-         type="text"
-         name="imdbID"
-         placeholder="IMDB ID"
-         value={newMovie.imdbID}
-         onChange={handleInputChange}
-        />
-       </td>
-       <td></td> {/* Empty cell for Created At */}
-       <td>
-        <button onClick={handleAddMovie} id="create_button">
-         <Icon icon="eva:plus-circle-fill" /> Add
-        </button>
-       </td>
-      </tr>
+       <tr>
+        <td>
+         <input
+          type="text"
+          name="title"
+          placeholder="Title"
+          value={newMovie.title}
+          onChange={handleInputChange}
+         />
+        </td>
+        <td>
+         <input
+          type="text"
+          name="releaseYear"
+          placeholder="Release Year"
+          value={newMovie.releaseYear}
+          onChange={handleInputChange}
+         />
+        </td>
+        <td>
+         <input
+          type="text"
+          name="imdbID"
+          placeholder="IMDB ID"
+          value={newMovie.imdbID}
+          onChange={handleInputChange}
+         />
+        </td>
+        <td></td> {/* Empty cell for Created At */}
+        <td>
+         <button onClick={handleAddMovie} id="create_button">
+          <Icon icon="eva:plus-circle-fill" /> Add
+         </button>
+        </td>
+       </tr>
       )}
      </thead>
      <tbody>
       {movies.map((movie) => (
        <tr key={movie._id}>
-        <td data-label="Title">{movie.title}</td>
-        <td data-label="Release Year">{movie.releaseYear}</td>
-        <td data-label="IMDB ID">{movie.imdbID}</td>
+        <td>
+         {editingMovieId === movie._id ? (
+          <input
+           type="text"
+           name="title"
+           value={movie.title}
+           onChange={(e) => handleMovieInputChange(e, movie._id)}
+          />
+         ) : (
+          <div onClick={() => handleEditClick(movie._id)}>{movie.title}</div>
+         )}
+        </td>
+        <td>
+         {editingMovieId === movie._id ? (
+          <input
+           type="text"
+           name="releaseYear"
+           value={String(movie.releaseYear)}
+           onChange={(e) => handleMovieInputChange(e, movie._id)}
+          />
+         ) : (
+          <div onClick={() => handleEditClick(movie._id)}>
+           {movie.releaseYear}
+          </div>
+         )}
+        </td>
+        <td>
+         {editingMovieId === movie._id ? (
+          <input
+           type="text"
+           name="imdbID"
+           value={movie.imdbID}
+           onChange={(e) => handleMovieInputChange(e, movie._id)}
+          />
+         ) : (
+          <div onClick={() => handleEditClick(movie._id)}>{movie.imdbID}</div>
+         )}
+        </td>
         <td data-label="Created At">{movie.created_at}</td>
         <td>
-         <button onClick={() => handleRemoveMovie(movie._id)}>
-          <Icon icon="mdi:trash-can" />
-         </button>
+         {editingMovieId === movie._id ? (
+          <button onClick={handleSaveClick}>Save</button>
+         ) : (
+          <button onClick={() => handleRemoveMovie(movie._id)}>
+           <Icon icon="mdi:trash-can" />
+          </button>
+         )}
         </td>
        </tr>
       ))}
