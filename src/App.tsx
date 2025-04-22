@@ -40,6 +40,7 @@ function App() {
    created_at: '2024-01-03T00:00:00.000Z',
   },
  ]);
+ const [create, setCreate] = useState(false);
 
  const [newMovie, setNewMovie] = useState<NewMovie>({
   title: '',
@@ -51,13 +52,13 @@ function App() {
   const newMovieToAdd: Movie = {
    _id: String(Date.now()),
    title: newMovie.title,
-   releaseYear: parseInt(newMovie.releaseYear, 10), // Ensure it's a number
+   releaseYear: parseInt(newMovie.releaseYear, 10), 
    imdbID: newMovie.imdbID,
    created_at: new Date().toISOString(),
   };
 
-  setMovies([newMovieToAdd, ...movies]); // Add to the beginning
-  setNewMovie({ title: '', releaseYear: '', imdbID: '' }); // Reset
+  setMovies([newMovieToAdd, ...movies]); 
+  setNewMovie({ title: '', releaseYear: '', imdbID: '' });
  };
 
  const handleRemoveMovie = (id: string) => {
@@ -72,13 +73,12 @@ function App() {
   <>
    <h1>Movie Viewer App</h1>
 
-   {/* Movie Table */}
    <div>
     <table>
      <thead>
       <tr>
        <th>
-        Title <Icon icon="eva:plus-circle-fill" onClick={() => {}} />
+        Title <Icon icon="eva:plus-circle-fill" onClick={() => setCreate(!create)} />
        </th>
        <th>Release Year</th>
        <th>IMDB ID</th>
@@ -87,7 +87,8 @@ function App() {
       </tr>
 
       {/* New Movie Input Row */}
-      <tr>
+      {create && (
+        <tr>
        <td>
         <input
          type="text"
@@ -117,11 +118,12 @@ function App() {
        </td>
        <td></td> {/* Empty cell for Created At */}
        <td>
-        <button onClick={handleAddMovie}>
+        <button onClick={handleAddMovie} id="create_button">
          <Icon icon="eva:plus-circle-fill" /> Add
         </button>
        </td>
       </tr>
+      )}
      </thead>
      <tbody>
       {movies.map((movie) => (
