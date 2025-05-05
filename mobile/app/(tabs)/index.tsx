@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,11 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  Alert,
 } from 'react-native';
-import Icon from 'react-native-vector-icons';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
 interface Movie {
   _id: string;
@@ -25,30 +28,8 @@ interface NewMovie {
 }
 
 const HomeScreen = () => {
-  const [movies, setMovies] = useState<Movie[]>([
-    {
-      _id: '1',
-      title: 'The Shawshank Redemption',
-      releaseYear: 1994,
-      imdbID: 'tt0111161',
-      created_at: '2024-01-01T00:00:00.000Z',
-    },
-    {
-      _id: '2',
-      title: 'The Godfather',
-      releaseYear: 1972,
-      imdbID: 'tt0068646',
-      created_at: '2024-01-02T00:00:00.000Z',
-    },
-    {
-      _id: '3',
-      title: 'The Dark Knight',
-      releaseYear: 2008,
-      imdbID: 'tt0468569',
-      created_at: '2024-01-03T00:00:00.000Z',
-    },
-  ]);
-
+  const navigation = useNavigation();
+  const [movies, setMovies] = useState<Movie[]>([]);
   const [create, setCreate] = useState(false);
   const [editingMovieId, setEditingMovieId] = useState<string | null>(null);
   const [newMovie, setNewMovie] = useState<NewMovie>({
@@ -56,20 +37,106 @@ const HomeScreen = () => {
     releaseYear: '',
     imdbID: '',
   });
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleAddMovie = useCallback(() => {
-    const newMovieToAdd: Movie = {
-      _id: String(Date.now()),
-      title: newMovie.title,
-      releaseYear: parseInt(newMovie.releaseYear, 10),
-      imdbID: newMovie.imdbID,
-      created_at: new Date().toISOString(),
+  useEffect(() => {
+    const loadToken = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem('userToken');
+        setToken(storedToken);
+      } catch (e) {
+        console.error('Failed to load token from AsyncStorage:', e);
+      }
     };
 
-    setMovies((prevMovies) => [newMovieToAdd, ...prevMovies]);
-    setNewMovie({ title: '', releaseYear: '', imdbID: '' });
-    setCreate(false);
-  }, [newMovie]);
+    loadToken();
+  }, []);
+
+  useEffect(() => {
+    const fetchMovies = async () => {
+      setLoading(true);
+      setError(null);
+      if (token) {
+        try {
+          const response = await fetch('http://localhost:5000/api/movies', {
+            headers: {
+              'x-auth-token': token,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setMovies(data);
+          } else {
+            setError(
+              'Failed to fetch movies. Please ensure you are logged in.'
+            );
+            Alert.alert(
+              'Unauthorized',
+              'Please login to access movie data.',
+              [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+            );
+          }
+        } catch (err: any) {
+          setError('Error fetching movies: ' + err.message);
+          Alert.alert(
+            'Error',
+            'Failed to connect to the server. Please try again later.',
+            [{ text: 'OK' }]
+          );
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setError('No authentication token found. Please log in.');
+        setLoading(false);
+        Alert.alert(
+          'Not Logged In',
+          'Please login to view the movies.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
+        );
+      }
+    };
+
+    fetchMovies();
+  }, [token, navigation]);
+
+  const handleAddMovie = useCallback(async () => {
+    if (!token) {
+      setError('Not authenticated.');
+      Alert.alert('Authentication Required', 'Please login first.');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5000/api/movies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: JSON.stringify(newMovie),
+      });
+
+      if (response.ok) {
+        const addedMovie = await response.json();
+        setMovies((prevMovies) => [addedMovie, ...prevMovies]);
+        setNewMovie({ title: '', releaseYear: '', imdbID: '' });
+        setCreate(false);
+      } else {
+        setError('Failed to add movie.');
+        Alert.alert('Add Movie Failed', 'Unable to add the movie. Try again.');
+      }
+    } catch (err: any) {
+      setError('Error adding movie: ' + err.message);
+      Alert.alert(
+        'Error',
+        'Failed to connect to the server. Please try again later.'
+      );
+    }
+  }, [token, newMovie, movies]);
 
   const handleMovieInputChange = useCallback(
     (id: string, name: string, value: string) => {
@@ -91,87 +158,89 @@ const HomeScreen = () => {
     setEditingMovieId(id);
   }, []);
 
-  const handleSaveClick = useCallback(() => {
+  const handleSaveClick = useCallback(async () => {
     setEditingMovieId(null);
+    Alert.alert('Info', 'Save functionality is not fully implemented.');
   }, []);
 
-  const handleRemoveMovie = useCallback((id: string) => {
-    setMovies((prevMovies) => prevMovies.filter((movie) => movie._id !== id));
-  }, []);
+  const handleRemoveMovie = useCallback(
+    async (id: string) => {
+      if (!token) {
+        setError('Not authenticated.');
+        Alert.alert('Authentication Required', 'Please login first.');
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `http://localhost:5000/api/movies/${id}`,
+          {
+            method: 'DELETE',
+            headers: {
+              'x-auth-token': token,
+            },
+          }
+        );
+
+        if (response.ok) {
+          setMovies((prevMovies) =>
+            prevMovies.filter((movie) => movie._id !== id)
+          );
+          Alert.alert('Success', 'Movie deleted successfully.');
+        } else {
+          setError('Failed to remove movie.');
+          Alert.alert('Delete Failed', 'Unable to delete the movie. Try again.');
+        }
+      } catch (err: any) {
+        setError('Error removing movie: ' + err.message);
+        Alert.alert(
+          'Error',
+          'Failed to connect to the server. Please try again later.'
+        );
+      }
+    },
+    [token]
+  );
 
   const handleInputChange = useCallback((name: string, value: string) => {
     setNewMovie((prevNewMovie) => ({ ...prevNewMovie, [name]: value }));
   }, []);
 
-  const renderMovieRow = useCallback(
-    (movie: Movie) => (
-      <View key={movie._id} style={styles.row}>
-        {editingMovieId === movie._id ? (
-          <TextInput
-            style={styles.input}
-            value={movie.title}
-            onChangeText={(text) =>
-              handleMovieInputChange(movie._id, 'title', text)
-            }
-          />
-        ) : (
-          <Pressable onPress={() => handleEditClick(movie._id)}>
-            <Text style={styles.cell}>{movie.title}</Text>
-          </Pressable>
-        )}
+  const goToLogin = () => {
+    navigation.navigate('Login');
+  };
 
-        {editingMovieId === movie._id ? (
-          <TextInput
-            style={styles.input}
-            value={String(movie.releaseYear)}
-            onChangeText={(text) =>
-              handleMovieInputChange(movie._id, 'releaseYear', text)
-            }
-            keyboardType="number-pad"
-          />
-        ) : (
-          <Pressable onPress={() => handleEditClick(movie._id)}>
-            <Text style={styles.cell}>{movie.releaseYear}</Text>
-          </Pressable>
-        )}
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('userToken');
+    setToken(null);
+    setMovies([]);
+    setError(null);
+    navigation.navigate('Login');
+  };
 
-        {editingMovieId === movie._id ? (
-          <TextInput
-            style={styles.input}
-            value={movie.imdbID}
-            onChangeText={(text) =>
-              handleMovieInputChange(movie._id, 'imdbID', text)
-            }
-          />
-        ) : (
-          <Pressable onPress={() => handleEditClick(movie._id)}>
-            <Text style={styles.cell}>{movie.imdbID}</Text>
-          </Pressable>
-        )}
-
-        <Text style={styles.cell}>{movie.created_at}</Text>
-
-        {editingMovieId === movie._id ? (
-          <Button title="Save" onPress={handleSaveClick} />
-        ) : (
-          <Pressable onPress={() => handleRemoveMovie(movie._id)}>
-            {/* <Icon name="trash-can" size={20} color="red" /> */}
-          </Pressable>
-        )}
-      </View>
-    ),
-    [editingMovieId, handleEditClick, handleMovieInputChange, handleRemoveMovie, handleSaveClick]
-  );
+  useEffect(() => {
+    if (!token) {
+      setMovies([]);
+    }
+  }, [token]);
 
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.header}>Movie Viewer App</Text>
 
+      {token ? (
+        <Button title="Logout" onPress={handleLogout} />
+      ) : (
+        <Button title="Go to Login" onPress={goToLogin} />
+      )}
+
       <View style={styles.table}>
         <View style={styles.headerRow}>
           <Text style={styles.headerCell}>
             Title
-            {/* <Icon name="plus-circle" size={20} onPress={() => setCreate(!create)} /> */}
+            <Pressable onPress={() => setCreate(!create)}>
+              <Icon name="plus-circle" size={20} color="green" />
+            </Pressable>
           </Text>
           <Text style={styles.headerCell}>Release Year</Text>
           <Text style={styles.headerCell}>IMDB ID</Text>
@@ -205,7 +274,13 @@ const HomeScreen = () => {
           </View>
         )}
 
-        {movies.map(renderMovieRow)}
+        {loading ? (
+          <Text>Loading movies...</Text>
+        ) : error ? (
+          <Text>Error: {error}</Text>
+        ) : (
+          movies.map(renderMovieRow)
+        )}
       </View>
     </ScrollView>
   );
